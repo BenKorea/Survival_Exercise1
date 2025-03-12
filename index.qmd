@@ -12,6 +12,7 @@ knitr:
 execute: 
   warning: false
 editor: visual
+---add
 ---
 
 # Data load
@@ -65,7 +66,6 @@ CT size, CT solid size, Pathology size 의 관계 확인
 plot(df[,c("Ctsolid_size","CT_size")])
 plot(df[,c("CT_size","path_size")])
 ```
-
 
 path_size와 CT_size 사용
 
