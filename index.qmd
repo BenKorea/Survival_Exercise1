@@ -52,7 +52,7 @@ df$Cell_type <- factor(df$Cell_type,labels = c("ADC","SQC","BAC","Others"))
 table(df[,c("Cell_type","Patho")])
 ```
 
-
+```{r optype_factorization}
 df$optype <- factor(df$optype, labels = c("Lobectomy", "S_lobectomy", "Pneumonectomy"))
 table(df$Differentiation)
 df[df$Differentiation=="#VALUE!","Differentiation"] <-"n"
@@ -66,13 +66,14 @@ plot(df[,c("Ctsolid_size","CT_size")])
 plot(df[,c("CT_size","path_size")])
 ```
 
+
 path_size와 CT_size 사용
 
 psm 모델에서는 survival period는 0 이하의 값을 가지면 안됨
 
 op mortality 때문에 생기는 문제 - op mortality를 케이스에서 제거하거나 1을 전부 더해서 해결
 
-```{r}
+```{r survival_period}
 table(df$survival==0)
 table(df$survival<0)
 df$survival <- df$survival+1
@@ -80,13 +81,13 @@ df$survival <- df$survival+1
 
 Nstage는 숫자가 아닌 factor로 변경 (연속변수가 아님)
 
-```{r}
+```{r }
 df$Nstage <- factor(df$Nstage)
 ```
 
 Adj_RT, adj_CT 는 factor로 변경, NeoAdj, VATS도 factor
 
-```{r}
+```{r RT_CT_factorization}
 df$Adj_RT <- factor(df$Adj_RT, labels = c("No","Yes"))
 df$adj_CT <- factor(df$adj_CT, labels = c("No","Yes"))
 df$NeoAdj <- factor(df$NeoAdj, labels = c("No","Yes"))
@@ -95,9 +96,12 @@ df$VATS   <- factor(df$VATS, labels = c("No","Yes"))
 
 ## 생존분석에 사용할 변수들 선택
 
-```{r}
+```{r variable_selection}
+
 library(rms)
+
 mytable(death~.,data=df)
+
 attach(df)
 dd <- datadist(Sex,OpAge,NeoAdj,optype,VATS,CT_size,path_size,Cell_type,
                Tstage,Nstage,Mstage,Differentiation,Adj_RT,adj_CT,stage)
@@ -108,7 +112,7 @@ options(na.action="na.delete")
 
 ### Generate survival time variable
 
-```{r}
+```{r survival_time}
 years <- survival/365.2422*12
 years.r <- rec_free/365.2422*12
 units(years) <- "Year"
@@ -117,7 +121,7 @@ units(years.r) <- "Year"
 
 ### S라는 survival 객체를 만들어서 작업, R = recurrence free survival
 
-```{r}
+```{r survival_object}
 S<- Surv(years,death)
 R<- Surv(years.r, recurrence)
 
@@ -127,7 +131,7 @@ head(S,40)
 
 ## Cox PH 모델 만들어 보기
 
-```{r}
+```{r cox_model}
 fit.cph <- cph(S~Sex+OpAge+NeoAdj+optype+VATS+CT_size+path_size+Cell_type+
                Tstage+Nstage+Mstage+Differentiation+Adj_RT+adj_CT+stage,
                method = "efron", x=TRUE, y=TRUE, surv=TRUE, se.fit = TRUE)
@@ -138,7 +142,7 @@ error : X matrix deemed to be singular; variable stage=Stage IV
 
 stage variable이 Tstage+Nstage+Mstage 조합이라서 발생하는 문제로 추정됨 stage 제거
 
-```{r}
+```{r cox_model2}
 #| fig-width: 6
 #| fig-height: 6
 fit.cph <- cph(S~Sex+OpAge+NeoAdj+optype+VATS+CT_size+path_size+Cell_type+
@@ -151,7 +155,7 @@ anova(fit.cph) %>% plot
 
 spearman graph
 
-```{r}
+```{r spearman_graph}
 #| fig-width: 6
 #| fig-height: 6
 w<- spearman2(years~Sex+OpAge+NeoAdj+optype+VATS+CT_size+path_size+Cell_type+
@@ -163,7 +167,7 @@ plot(w)
 
 forest plot을 그리려면 rms package의 cph는 지원하지 않으므로 survival package의 coxph를 사용한다.
 
-```{r}
+```{r forest_plot}
 #| fig-width: 8
 #| fig-height: 12
 library(survival)
@@ -178,7 +182,7 @@ ggforest(fit.coxph, data=df)
 
 ## PSM model 만들기
 
-```{r}
+```{r }
 #| fig-width: 6
 #| fig-height: 6
 fit.psm <- psm(S~Sex+OpAge+NeoAdj+optype+VATS+CT_size+path_size+Cell_type+
@@ -210,7 +214,7 @@ plot(anova(fit.psm))
 
 age와 같은 특정변수에 대한 모델 만들기
 
-```{r}
+```{r age}
 #| fig-width: 6
 #| fig-height: 8
 fit.age <- psm(S~rcs(OpAge,5))
@@ -218,14 +222,14 @@ survplot(fit.age, col=rainbow(10)[5:10])
 survplot(fit.age, logt = T,loglog = T , col=rainbow(10)[5:10])
 ```
 
-```{r}
+```{r Tstage}
 #| fig-width: 6
 #| fig-height: 6
 fit.t <- psm(S~Tstage)
 survplot(fit.t,  col=rainbow(10)[1:6])
 ```
 
-```{r}
+```{r Nstage}
 #| fig-width: 6
 #| fig-height: 6
 fit.n <- psm(S~Nstage)
@@ -234,7 +238,7 @@ survplot(fit.n,  col=rainbow(10)[1:6])
 
 연속변수에 대한 rcs 적용
 
-```{r}
+```{r anova}
 #| fig-width: 6
 #| fig-height: 6
 fit.psm2 <- psm(S~Sex+rcs(OpAge,5)+NeoAdj+optype+VATS+rcs(CT_size,5)+
@@ -247,7 +251,7 @@ plot(anova(fit.psm2))
 
 각각의 변수에 대한 Predict 함수 그래프
 
-```{r}
+```{r predict}
 #| fig-width: 6
 #| fig-height: 6
 plot(Predict(fit.psm2,OpAge))
@@ -260,7 +264,7 @@ plot(Predict(fit.psm2,Mstage))
 
 ### ggplot predict graph
 
-```{r}
+```{r sepdiscrete}
 #| fig-width: 8
 #| fig-height: 8
 a<- anova(fit.psm2)
@@ -270,7 +274,7 @@ ggplot(Predict(fit.psm2, ref.zero = T), vnames = "names",
 
 ### forest plot for psm model
 
-```{r}
+```{r psm2}
 #| fig-width: 10
 #| fig-height: 12
 # summary(fit.psm2)
@@ -279,7 +283,7 @@ plot(summary(fit.psm2))
 
 깔끔한 forestplot 을 그리려면 ormPlot package가 필요하다
 
-```{r}
+```{r ormplot}
 #| fig-width: 10
 #| fig-height: 12
 library(ormPlot)
@@ -290,7 +294,7 @@ forestplot(summary(fit.psm2))
 
 ### fit 모델을 검정하는 과정
 
-```{r}
+```{r validate}
 validate(fit.psm2, method = "boot", B=200, type="residual")
 fpsm.val <- validate(fit.psm2, method = "boot", B=200, type="residual")
 ```
@@ -321,13 +325,13 @@ $$
 D_{xy} = 2 \times (C-0.5) \rightarrow C = \frac{D_{xy}}{2} + 0.5
 $$
 
-```{r}
+```{r fpsm}
 fpsm.val[1,5]/2 +0.5  ## corrected index of Dxy
 ```
 
 ## Residuals
 
-```{r}
+```{r residuals}
 #| fig-width: 6
 #| fig-height: 6
 pcolor <- rgb(0.8,0,0,0.2)
@@ -340,7 +344,7 @@ plot(residuals(fit.psm2, type = "matrix"), col=pcolor, pch=15)
 
 ### calibration
 
-```{r}
+```{r calibration}
 cal5 <- calibrate(fit.psm2,u=5, B=300)
 plot(cal5)
 cal.k5 <- calibrate(fit.psm2,cmethod = "KM",u=5, m=60, B=120, pr=FALSE)
@@ -354,7 +358,7 @@ plot(cal.k1,add=TRUE)
 
 ## Nomogram 그리기
 
-```{r}
+```{r nomogram}
 #| fig-width: 9
 #| fig-height: 12
 nomogram(fit.psm2, fun = function(x){1/(1+exp(-x))})
@@ -377,7 +381,7 @@ plot(nomogram(fit.psm2))
 
 R function analytic representation of $X\hat\beta$ from a fitted regression model
 
-```{r}
+```{r fit_psm2}
 Function(fit.psm2)
 g <- Function(fit.psm2)
 g(OpAge=70, Tstage = "1a")
@@ -385,7 +389,7 @@ g(OpAge=70, Tstage = "1a")
 
 ### Nomogram with expected survival
 
-```{r}
+```{r nomogram2}
 #| fig-width: 9
 #| fig-height: 12
 expected.surv <- Mean(fit.psm2)
@@ -399,7 +403,7 @@ nom.fpsm <- nomogram(fit.psm2,
 plot(nom.fpsm)
 ```
 
-```{r}
+```{r nomogram3}
 #| fig-width: 12
 #| fig-height: 12
 surv <- Survival(fit.psm2)
@@ -416,7 +420,7 @@ plot(nom2)
 
 Function으로 $X\hat\beta$ 를 구한 다음에 Survival 함수로 생존율을 예측할 수 있다.
 
-```{r}
+```{r surv3}
 ### g <- Function(fit.psm2)
 ### surv3 <- function(x) surv(3, lp=x)
 ### surv <- Survival(fit.psm2) surv(times, lp, parms)
